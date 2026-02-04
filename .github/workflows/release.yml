@@ -1,0 +1,63 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            package_target: package-darwin
+          - os: windows-latest
+            package_target: package-windows
+          - os: ubuntu-latest
+            package_target: package-linux
+    runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ github.ref_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9"
+
+      - name: Install make (Windows)
+        if: runner.os == 'Windows'
+        run: choco install make -y
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Package (Makefile)
+        run: make ${{ matrix.package_target }} VERSION=${{ env.VERSION }}
+
+      - name: Release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/artifacts/*
+          generate_release_notes: true
+
