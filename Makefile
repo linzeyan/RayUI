@@ -9,7 +9,7 @@ WIN_ICON_OUT ?= build/windows/icon.ico
 # VERSION:
 # - Manual packaging: override via `make package-darwin VERSION=v1.2.3`
 # - Default: best-effort from git
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo v0.1.0)
+VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo v0.1.0)
 
 WAILS ?= $(shell command -v wails 2>/dev/null || echo "$(shell go env GOPATH)/bin/wails")
 
