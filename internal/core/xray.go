@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/RayUI/RayUI/internal/config"
@@ -62,7 +61,7 @@ func (c *XrayCore) Start(profile model.ProfileItem, routing model.RoutingItem, d
 
 	bin := c.BinaryPath()
 	cmd := exec.CommandContext(ctx, bin, "run", "-c", cfgPath)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.SysProcAttr = coreSysProcAttr()
 	// Tell Xray where to find geoip.dat / geosite.dat.
 	cmd.Env = append(os.Environ(), "XRAY_LOCATION_ASSET="+filepath.Join(c.dataDir, "data"))
 	if c.logWriter != nil {
@@ -108,7 +107,7 @@ func (c *XrayCore) Stop() error {
 		return nil
 	}
 
-	_ = c.cmd.Process.Signal(syscall.SIGTERM)
+	_ = gracefulStop(c.cmd.Process)
 	c.cancel()
 
 	done := make(chan struct{})

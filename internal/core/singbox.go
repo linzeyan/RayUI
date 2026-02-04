@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/RayUI/RayUI/internal/config"
@@ -65,7 +64,7 @@ func (c *SingboxCore) Start(profile model.ProfileItem, routing model.RoutingItem
 
 	bin := c.BinaryPath()
 	cmd := exec.CommandContext(ctx, bin, "run", "-c", cfgPath)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.SysProcAttr = coreSysProcAttr()
 	if c.logWriter != nil {
 		cmd.Stdout = c.logWriter
 		cmd.Stderr = c.logWriter
@@ -111,7 +110,7 @@ func (c *SingboxCore) Stop() error {
 	}
 
 	// Graceful shutdown.
-	_ = c.cmd.Process.Signal(syscall.SIGTERM)
+	_ = gracefulStop(c.cmd.Process)
 	c.cancel()
 
 	done := make(chan struct{})
