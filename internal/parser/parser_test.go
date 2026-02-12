@@ -611,3 +611,140 @@ func TestParseSIP008(t *testing.T) {
 		t.Errorf("method = %q", items[0].Security)
 	}
 }
+
+// --- Edge case tests ---
+
+func TestParseURIEmpty(t *testing.T) {
+	_, err := ParseURI("")
+	if err == nil {
+		t.Error("expected error for empty URI")
+	}
+}
+
+func TestParseURIMalformedScheme(t *testing.T) {
+	// These URIs should error.
+	errorURIs := []string{
+		"://missing-scheme",
+		"vmess://not-valid-base64!!!",
+	}
+	for _, uri := range errorURIs {
+		_, err := ParseURI(uri)
+		if err == nil {
+			t.Errorf("expected error for %q", uri)
+		}
+	}
+
+	// Minimal URIs with known schemes are parsed leniently (no error).
+	lenientURIs := []string{
+		"vless://",
+		"trojan://",
+	}
+	for _, uri := range lenientURIs {
+		_, err := ParseURI(uri)
+		if err != nil {
+			t.Errorf("unexpected error for lenient URI %q: %v", uri, err)
+		}
+	}
+}
+
+func TestParseVLESSIPv6(t *testing.T) {
+	uri := "vless://uuid@[::1]:443?security=tls&sni=example.com&type=tcp#IPv6Node"
+	p, err := ParseURI(uri)
+	if err != nil {
+		t.Fatalf("ParseURI IPv6: %v", err)
+	}
+	if p.ConfigType != model.ConfigVLESS {
+		t.Errorf("configType = %v", p.ConfigType)
+	}
+	if p.Port != 443 {
+		t.Errorf("port = %d, want 443", p.Port)
+	}
+	if p.Remarks != "IPv6Node" {
+		t.Errorf("remarks = %q", p.Remarks)
+	}
+}
+
+func TestParseTrojanUnicodeRemarks(t *testing.T) {
+	uri := "trojan://pass@1.2.3.4:443?sni=a.com#日本東京節點"
+	p, err := ParseURI(uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Remarks != "日本東京節點" {
+		t.Errorf("remarks = %q, want 日本東京節點", p.Remarks)
+	}
+}
+
+func TestParseTrojanSpecialCharsPassword(t *testing.T) {
+	uri := "trojan://p%40ss%3Aw0rd%21@1.2.3.4:443?sni=a.com#Node"
+	p, err := ParseURI(uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.UUID != "p@ss:w0rd!" {
+		t.Errorf("password = %q, want p@ss:w0rd!", p.UUID)
+	}
+}
+
+func TestParseBatchEmpty(t *testing.T) {
+	items, err := ParseBatch("")
+	if err != nil && len(items) != 0 {
+		t.Fatalf("empty batch should return 0 items or error, got %d items err=%v", len(items), err)
+	}
+}
+
+func TestParseBatchMixedValidInvalid(t *testing.T) {
+	lines := "vless://uuid@1.2.3.4:443?security=tls&sni=a.com#Good\nhttp://invalid.com\ntrojan://pass@5.6.7.8:443?sni=b.com#Good2"
+	items, err := ParseBatch(lines)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Should parse the valid ones and skip invalid.
+	if len(items) < 2 {
+		t.Errorf("expected at least 2 valid items, got %d", len(items))
+	}
+}
+
+func TestParseBatchPlainTextLines(t *testing.T) {
+	lines := "vless://uuid@1.2.3.4:443?security=tls&sni=a.com#Node1\ntrojan://pass@5.6.7.8:443?sni=b.com#Node2"
+	items, err := ParseBatch(lines)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2, got %d", len(items))
+	}
+}
+
+func TestDetectFormatPlainText(t *testing.T) {
+	got := DetectFormat("just some random text without any structure")
+	// Should not crash; result should be "unknown" or similar.
+	if got == "" {
+		t.Error("DetectFormat should return a non-empty string")
+	}
+}
+
+func TestParseVLESSAllTransports(t *testing.T) {
+	transports := []struct {
+		name    string
+		typeVal string
+	}{
+		{"tcp", "tcp"},
+		{"ws", "ws"},
+		{"grpc", "grpc"},
+		{"h2", "h2"},
+		{"httpupgrade", "httpupgrade"},
+	}
+	for _, tt := range transports {
+		t.Run(tt.name, func(t *testing.T) {
+			uri := "vless://uuid@1.2.3.4:443?security=tls&sni=a.com&type=" + tt.typeVal + "#" + tt.name
+			p, err := ParseURI(uri)
+			if err != nil {
+				t.Fatalf("ParseURI %s: %v", tt.name, err)
+			}
+			if p.Network != tt.typeVal {
+				t.Errorf("network = %q, want %q", p.Network, tt.typeVal)
+			}
+		})
+	}
+}

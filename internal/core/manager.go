@@ -30,6 +30,8 @@ func SelectCore(profile model.ProfileItem) model.ECoreType {
 		return model.CoreSingbox
 	case profile.ConfigType == model.ConfigTUIC:
 		return model.CoreSingbox
+	case profile.ConfigType == model.ConfigWireGuard:
+		return model.CoreSingbox
 	case profile.Network == "grpc" || profile.Network == "h2":
 		return model.CoreSingbox
 	default:

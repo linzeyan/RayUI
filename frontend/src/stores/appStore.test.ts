@@ -86,4 +86,91 @@ describe("appStore", () => {
       expect(useAppStore.getState().coreStatus).toEqual(mockCoreStatus);
     });
   });
+
+  describe("setProxyMode - edge cases", () => {
+    it("handles null config gracefully", async () => {
+      // config is null by default (not set yet)
+      mockAppApi.SetProxyMode.mockResolvedValue(undefined);
+
+      await useAppStore.getState().setProxyMode(1);
+
+      expect(mockAppApi.SetProxyMode).toHaveBeenCalledWith(1);
+      // config should still be null since there was no config to spread
+      expect(useAppStore.getState().config).toBeNull();
+    });
+  });
+
+  describe("page navigation", () => {
+    it("cycles through all pages", () => {
+      const pages = ["profiles", "subscriptions", "routing", "dns", "settings", "logs"] as const;
+      for (const page of pages) {
+        useAppStore.getState().setCurrentPage(page);
+        expect(useAppStore.getState().currentPage).toBe(page);
+      }
+    });
+  });
+
+  describe("traffic reset", () => {
+    it("can reset traffic to zero", () => {
+      useAppStore.getState().setTraffic({
+        upload: 1000,
+        download: 2000,
+        totalUpload: 5000,
+        totalDownload: 10000,
+      });
+      useAppStore.getState().setTraffic({
+        upload: 0,
+        download: 0,
+        totalUpload: 0,
+        totalDownload: 0,
+      });
+      expect(useAppStore.getState().traffic.upload).toBe(0);
+      expect(useAppStore.getState().traffic.download).toBe(0);
+    });
+  });
+
+  describe("loadConfig - error handling", () => {
+    it("handles backend error gracefully", async () => {
+      mockAppApi.GetConfig.mockRejectedValue(new Error("network error"));
+
+      try {
+        await useAppStore.getState().loadConfig();
+      } catch {
+        // Expected to throw
+      }
+
+      // Config should remain null after failed load.
+      expect(useAppStore.getState().config).toBeNull();
+    });
+  });
+
+  describe("loadCoreStatus - error handling", () => {
+    it("handles backend error gracefully", async () => {
+      mockAppApi.GetCoreStatus.mockRejectedValue(new Error("timeout"));
+
+      try {
+        await useAppStore.getState().loadCoreStatus();
+      } catch {
+        // Expected to throw
+      }
+
+      expect(useAppStore.getState().coreStatus).toBeNull();
+    });
+  });
+
+  describe("updateConfig - preserves fields", () => {
+    it("updating one field does not reset others", async () => {
+      const original = { ...mockConfig };
+      useAppStore.setState({ config: original as never });
+      mockAppApi.UpdateConfig.mockResolvedValue(undefined);
+
+      const updated = { ...original, proxyMode: 2 };
+      await useAppStore.getState().updateConfig(updated as never);
+
+      const config = useAppStore.getState().config;
+      expect(config?.proxyMode).toBe(2);
+      expect(config?.ui?.language).toBe("en");
+      expect(config?.ui?.theme).toBe("system");
+    });
+  });
 });

@@ -338,3 +338,284 @@ func TestXrayRoutingRules(t *testing.T) {
 		t.Errorf("expected at least 5 rules, got %d", len(rules))
 	}
 }
+
+func TestXrayGenerateTrojan(t *testing.T) {
+	g := &XrayConfigGenerator{}
+	profile := model.ProfileItem{
+		ConfigType:     model.ConfigTrojan,
+		Address:        "trojan.example.com",
+		Port:           443,
+		UUID:           "trojan-password",
+		Network:        "tcp",
+		StreamSecurity: "tls",
+		SNI:            "trojan.example.com",
+	}
+	routing := model.DefaultRoutingItems()[0]
+	dns := model.DefaultDNSItem()
+	cfg := model.DefaultConfig()
+
+	data, err := g.Generate(profile, routing, dns, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+
+	outbounds := result["outbounds"].([]any)
+	proxy := outbounds[0].(map[string]any)
+	if proxy["protocol"] != "trojan" {
+		t.Errorf("protocol = %v, want trojan", proxy["protocol"])
+	}
+
+	settings := proxy["settings"].(map[string]any)
+	servers := settings["servers"].([]any)
+	if len(servers) != 1 {
+		t.Fatalf("expected 1 server, got %d", len(servers))
+	}
+	server := servers[0].(map[string]any)
+	if server["password"] != "trojan-password" {
+		t.Errorf("password = %v", server["password"])
+	}
+	if server["address"] != "trojan.example.com" {
+		t.Errorf("address = %v", server["address"])
+	}
+
+	ss := proxy["streamSettings"].(map[string]any)
+	if ss["security"] != "tls" {
+		t.Errorf("security = %v", ss["security"])
+	}
+}
+
+func TestXrayGenerateShadowsocks(t *testing.T) {
+	g := &XrayConfigGenerator{}
+	profile := model.ProfileItem{
+		ConfigType: model.ConfigShadowsocks,
+		Address:    "ss.example.com",
+		Port:       8388,
+		UUID:       "ss-password",
+		Security:   "aes-256-gcm",
+		Network:    "tcp",
+	}
+	routing := model.DefaultRoutingItems()[0]
+	dns := model.DefaultDNSItem()
+	cfg := model.DefaultConfig()
+
+	data, err := g.Generate(profile, routing, dns, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+
+	outbounds := result["outbounds"].([]any)
+	proxy := outbounds[0].(map[string]any)
+	if proxy["protocol"] != "shadowsocks" {
+		t.Errorf("protocol = %v, want shadowsocks", proxy["protocol"])
+	}
+
+	settings := proxy["settings"].(map[string]any)
+	servers := settings["servers"].([]any)
+	server := servers[0].(map[string]any)
+	if server["method"] != "aes-256-gcm" {
+		t.Errorf("method = %v", server["method"])
+	}
+	if server["password"] != "ss-password" {
+		t.Errorf("password = %v", server["password"])
+	}
+}
+
+func TestSingboxGenerateTrojan(t *testing.T) {
+	g := &SingboxConfigGenerator{}
+	profile := model.ProfileItem{
+		ConfigType:     model.ConfigTrojan,
+		Address:        "trojan.example.com",
+		Port:           443,
+		UUID:           "trojan-pass",
+		Network:        "ws",
+		Host:           "trojan.example.com",
+		Path:           "/ws",
+		StreamSecurity: "tls",
+		SNI:            "trojan.example.com",
+	}
+	routing := model.DefaultRoutingItems()[0]
+	dns := model.DefaultDNSItem()
+	cfg := model.DefaultConfig()
+
+	data, err := g.Generate(profile, routing, dns, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+
+	outbounds := result["outbounds"].([]any)
+	proxy := outbounds[0].(map[string]any)
+	if proxy["type"] != "trojan" {
+		t.Errorf("type = %v, want trojan", proxy["type"])
+	}
+	if proxy["password"] != "trojan-pass" {
+		t.Errorf("password = %v", proxy["password"])
+	}
+
+	transport := proxy["transport"].(map[string]any)
+	if transport["type"] != "ws" {
+		t.Errorf("transport type = %v", transport["type"])
+	}
+}
+
+func TestSingboxGenerateShadowsocks(t *testing.T) {
+	g := &SingboxConfigGenerator{}
+	profile := model.ProfileItem{
+		ConfigType: model.ConfigShadowsocks,
+		Address:    "ss.example.com",
+		Port:       8388,
+		UUID:       "ss-pass",
+		Security:   "chacha20-ietf-poly1305",
+		Network:    "tcp",
+	}
+	routing := model.DefaultRoutingItems()[0]
+	dns := model.DefaultDNSItem()
+	cfg := model.DefaultConfig()
+
+	data, err := g.Generate(profile, routing, dns, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+
+	outbounds := result["outbounds"].([]any)
+	proxy := outbounds[0].(map[string]any)
+	if proxy["type"] != "shadowsocks" {
+		t.Errorf("type = %v, want shadowsocks", proxy["type"])
+	}
+	if proxy["method"] != "chacha20-ietf-poly1305" {
+		t.Errorf("method = %v", proxy["method"])
+	}
+	if proxy["password"] != "ss-pass" {
+		t.Errorf("password = %v", proxy["password"])
+	}
+}
+
+func TestXrayDNSConfig(t *testing.T) {
+	g := &XrayConfigGenerator{}
+	profile := model.ProfileItem{
+		ConfigType: model.ConfigVMess,
+		Address:    "1.2.3.4",
+		Port:       443,
+		UUID:       "test",
+		Security:   "auto",
+		Network:    "tcp",
+	}
+	routing := model.DefaultRoutingItems()[0]
+	dns := model.DNSItem{
+		RemoteDNS:    "https://dns.google/dns-query",
+		DirectDNS:    "223.5.5.5",
+		BootstrapDNS: "8.8.8.8",
+	}
+	cfg := model.DefaultConfig()
+
+	data, err := g.Generate(profile, routing, dns, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+
+	dnsSection := result["dns"].(map[string]any)
+	servers := dnsSection["servers"].([]any)
+	if len(servers) < 3 {
+		t.Errorf("expected at least 3 DNS servers, got %d", len(servers))
+	}
+}
+
+func TestSingboxDNSFakeIP(t *testing.T) {
+	g := &SingboxConfigGenerator{}
+	profile := model.ProfileItem{
+		ConfigType: model.ConfigVLESS,
+		Address:    "1.2.3.4",
+		Port:       443,
+		UUID:       "test",
+		Network:    "tcp",
+	}
+	routing := model.DefaultRoutingItems()[0]
+	dns := model.DefaultDNSItem()
+	dns.FakeIP = true
+	cfg := model.DefaultConfig()
+
+	data, err := g.Generate(profile, routing, dns, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+
+	dnsSection := result["dns"].(map[string]any)
+	fakeip, ok := dnsSection["fakeip"].(map[string]any)
+	if !ok {
+		t.Fatal("missing fakeip section")
+	}
+	if fakeip["enabled"] != true {
+		t.Errorf("fakeip.enabled = %v", fakeip["enabled"])
+	}
+}
+
+func TestXrayOutboundsStructure(t *testing.T) {
+	g := &XrayConfigGenerator{}
+	profile := model.ProfileItem{
+		ConfigType: model.ConfigVMess,
+		Address:    "1.2.3.4",
+		Port:       443,
+		UUID:       "test",
+		Security:   "auto",
+		Network:    "tcp",
+	}
+	routing := model.DefaultRoutingItems()[0]
+	dns := model.DefaultDNSItem()
+	cfg := model.DefaultConfig()
+
+	data, err := g.Generate(profile, routing, dns, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+
+	outbounds := result["outbounds"].([]any)
+	if len(outbounds) != 3 {
+		t.Fatalf("expected 3 outbounds (proxy, direct, block), got %d", len(outbounds))
+	}
+
+	// Check tags.
+	tags := make(map[string]bool)
+	for _, ob := range outbounds {
+		m := ob.(map[string]any)
+		tags[m["tag"].(string)] = true
+	}
+	for _, want := range []string{"proxy", "direct", "block"} {
+		if !tags[want] {
+			t.Errorf("missing outbound tag %q", want)
+		}
+	}
+}

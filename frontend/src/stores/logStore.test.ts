@@ -88,4 +88,66 @@ describe("logStore", () => {
       expect(useLogStore.getState().autoScroll).toBe(false);
     });
   });
+
+  describe("addLog - boundary", () => {
+    it("adding to exactly 1999 logs should NOT drop any", () => {
+      const existing = Array.from({ length: 1999 }, (_, i) => `Line ${i}`);
+      useLogStore.setState({ logs: existing });
+
+      useLogStore.getState().addLog("Line 1999");
+
+      const logs = useLogStore.getState().logs;
+      expect(logs).toHaveLength(2000);
+      expect(logs[0]).toBe("Line 0"); // Nothing dropped
+      expect(logs[1999]).toBe("Line 1999");
+    });
+
+    it("adding multiple logs quickly preserves order", () => {
+      useLogStore.getState().addLog("First");
+      useLogStore.getState().addLog("Second");
+      useLogStore.getState().addLog("Third");
+
+      const logs = useLogStore.getState().logs;
+      expect(logs).toEqual(["First", "Second", "Third"]);
+    });
+
+    it("handles empty string log lines", () => {
+      useLogStore.getState().addLog("");
+      expect(useLogStore.getState().logs).toEqual([""]);
+    });
+
+    it("handles very long log lines", () => {
+      const longLine = "x".repeat(10000);
+      useLogStore.getState().addLog(longLine);
+      expect(useLogStore.getState().logs[0]).toHaveLength(10000);
+    });
+  });
+
+  describe("filter and search - combined", () => {
+    it("filter and search can both be set independently", () => {
+      useLogStore.getState().setFilterLevel("warning");
+      useLogStore.getState().setSearchQuery("timeout");
+
+      expect(useLogStore.getState().filterLevel).toBe("warning");
+      expect(useLogStore.getState().searchQuery).toBe("timeout");
+    });
+
+    it("resetting filter does not affect search", () => {
+      useLogStore.getState().setFilterLevel("error");
+      useLogStore.getState().setSearchQuery("test");
+      useLogStore.getState().setFilterLevel("all");
+
+      expect(useLogStore.getState().filterLevel).toBe("all");
+      expect(useLogStore.getState().searchQuery).toBe("test");
+    });
+
+    it("clearing search preserves filter level", () => {
+      useLogStore.getState().setFilterLevel("debug");
+      useLogStore.getState().setSearchQuery("query");
+      useLogStore.getState().setSearchQuery("");
+
+      expect(useLogStore.getState().filterLevel).toBe("debug");
+      expect(useLogStore.getState().searchQuery).toBe("");
+    });
+  });
 });

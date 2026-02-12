@@ -31,4 +31,22 @@ describe("useCoreLog", () => {
 
     expect(useLogStore.getState().logs).toEqual(["Line 1", "Line 2"]);
   });
+
+  it("stops receiving events after unmount", () => {
+    const { unmount } = renderHook(() => useCoreLog());
+
+    act(() => {
+      emitWailsEvent("core:log", "Before unmount");
+    });
+    expect(useLogStore.getState().logs).toHaveLength(1);
+
+    unmount();
+
+    act(() => {
+      emitWailsEvent("core:log", "After unmount");
+    });
+    // After unmount the listener should be cleaned up,
+    // so no new log should be added.
+    expect(useLogStore.getState().logs).toHaveLength(1);
+  });
 });

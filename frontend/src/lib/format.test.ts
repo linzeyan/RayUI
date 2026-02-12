@@ -74,3 +74,68 @@ describe("coreName", () => {
     expect(coreName(99)).toBe("Unknown");
   });
 });
+
+describe("formatBytes - boundary cases", () => {
+  it("handles very small values", () => {
+    expect(formatBytes(1)).toBe("1.00 B");
+  });
+
+  it("formats terabytes", () => {
+    expect(formatBytes(1099511627776)).toContain("TB");
+  });
+
+  it("handles NaN gracefully", () => {
+    // NaN should return "0 B" since NaN === 0 is false, but Math.log(NaN) is NaN
+    const result = formatBytes(NaN);
+    expect(typeof result).toBe("string");
+  });
+
+  it("handles negative values", () => {
+    // Negative values produce NaN in Math.log, should not crash
+    const result = formatBytes(-1);
+    expect(typeof result).toBe("string");
+  });
+
+  it("handles Infinity", () => {
+    const result = formatBytes(Infinity);
+    expect(typeof result).toBe("string");
+  });
+});
+
+describe("formatDate - boundary cases", () => {
+  it("returns '-' for null/undefined-like timestamps", () => {
+    expect(formatDate(0)).toBe("-");
+    // @ts-expect-error testing undefined
+    expect(formatDate(undefined)).toBe("-");
+    // @ts-expect-error testing null
+    expect(formatDate(null)).toBe("-");
+  });
+
+  it("handles very old timestamps", () => {
+    const result = formatDate(1); // Jan 1 1970
+    expect(result).toBeTruthy();
+    expect(result).not.toBe("-");
+  });
+
+  it("handles future timestamps", () => {
+    const future = Math.floor(Date.now() / 1000) + 86400 * 365;
+    const result = formatDate(future);
+    expect(result).toBeTruthy();
+    expect(result).not.toBe("-");
+  });
+});
+
+describe("protocolName - completeness", () => {
+  it("covers all protocol types", () => {
+    expect(protocolName(4)).toBe("SOCKS");
+    expect(protocolName(10)).toBe("HTTP");
+  });
+
+  it("returns Unknown for negative values", () => {
+    expect(protocolName(-1)).toBe("Unknown");
+  });
+
+  it("returns Unknown for 0", () => {
+    expect(protocolName(0)).toBe("Unknown");
+  });
+});

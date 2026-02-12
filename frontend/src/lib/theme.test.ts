@@ -85,3 +85,25 @@ describe("watchSystemTheme", () => {
     window.matchMedia = origMatchMedia;
   });
 });
+
+describe("applyTheme - DOM effects", () => {
+  it("dark theme adds dark class to documentElement", () => {
+    applyTheme("dark");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+  });
+
+  it("light theme removes dark class from documentElement", () => {
+    document.documentElement.classList.add("dark");
+    applyTheme("light");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+  });
+
+  it("switching between themes updates correctly", () => {
+    applyTheme("dark");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    applyTheme("light");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    applyTheme("dark");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+  });
+});

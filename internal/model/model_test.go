@@ -1,6 +1,9 @@
 package model
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestEnumStrings(t *testing.T) {
 	tests := []struct {
@@ -99,5 +102,130 @@ func TestProfileItemValidate(t *testing.T) {
 	p.Port = 70000
 	if err := p.Validate(); err == nil {
 		t.Error("expected validation error for port > 65535")
+	}
+}
+
+func TestEnumStringsComplete(t *testing.T) {
+	tests := []struct {
+		name string
+		got  string
+		want string
+	}{
+		{"ConfigSOCKS", ConfigSOCKS.String(), "socks"},
+		{"ConfigHysteria2", ConfigHysteria2.String(), "hysteria2"},
+		{"ConfigTUIC", ConfigTUIC.String(), "tuic"},
+		{"ConfigWireGuard", ConfigWireGuard.String(), "wireguard"},
+		{"ConfigHTTP", ConfigHTTP.String(), "http"},
+		{"ProxyModePAC", ProxyModePAC.String(), "pac"},
+		{"UnknownConfigType", EConfigType(99).String(), "unknown"},
+		{"UnknownCoreType", ECoreType(99).String(), "unknown"},
+		{"UnknownProxyMode", EProxyMode(99).String(), "unknown"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.got != tt.want {
+				t.Errorf("got %q, want %q", tt.got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNewProfileItem(t *testing.T) {
+	p := NewProfileItem()
+	if p.ID == "" {
+		t.Error("ID should not be empty")
+	}
+	if p.Network != "tcp" {
+		t.Errorf("Network = %q, want tcp", p.Network)
+	}
+	if p.StreamSecurity != "none" {
+		t.Errorf("StreamSecurity = %q, want none", p.StreamSecurity)
+	}
+	if p.Security != "auto" {
+		t.Errorf("Security = %q, want auto", p.Security)
+	}
+}
+
+func TestNewSubItem(t *testing.T) {
+	s := NewSubItem()
+	if s.ID == "" {
+		t.Error("ID should not be empty")
+	}
+	if !s.Enabled {
+		t.Error("Enabled should be true by default")
+	}
+}
+
+func TestProfileItemValidateBoundary(t *testing.T) {
+	tests := []struct {
+		name    string
+		addr    string
+		port    int
+		wantErr bool
+	}{
+		{"port 1 valid", "host", 1, false},
+		{"port 65535 valid", "host", 65535, false},
+		{"port -1 invalid", "host", -1, true},
+		{"port 65536 invalid", "host", 65536, true},
+		{"empty address", "", 443, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ProfileItem{Address: tt.addr, Port: tt.port}
+			err := p.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestDefaultRoutingItemsRuleIDs(t *testing.T) {
+	items := DefaultRoutingItems()
+	for i, item := range items {
+		if item.ID == "" {
+			t.Errorf("item[%d] has empty ID", i)
+		}
+		for j, rule := range item.Rules {
+			if rule.ID == "" {
+				t.Errorf("item[%d].Rules[%d] has empty ID", i, j)
+			}
+		}
+	}
+}
+
+func TestProfileItemJSONRoundTrip(t *testing.T) {
+	mux := true
+	p := ProfileItem{
+		ID: "test-id", ConfigType: ConfigVLESS, Remarks: "Test",
+		Address: "1.2.3.4", Port: 443, UUID: "uuid-test",
+		Security: "none", Network: "ws", Host: "example.com",
+		Path: "/ws", StreamSecurity: "tls", SNI: "example.com",
+		ALPN: "h2", Fingerprint: "chrome", PublicKey: "pk",
+		ShortID: "sid", SpiderX: "/", CoreType: CoreSingbox,
+		Extra: "extra", MuxEnabled: &mux, AllowInsecure: true,
+	}
+
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var got ProfileItem
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if got.ID != p.ID || got.Address != p.Address || got.Port != p.Port {
+		t.Errorf("basic fields mismatch: got %+v", got)
+	}
+	if got.ConfigType != p.ConfigType || got.CoreType != p.CoreType {
+		t.Errorf("enum fields mismatch")
+	}
+	if got.MuxEnabled == nil || *got.MuxEnabled != true {
+		t.Errorf("MuxEnabled mismatch")
+	}
+	if got.PublicKey != p.PublicKey || got.ShortID != p.ShortID {
+		t.Errorf("reality fields mismatch")
 	}
 }
